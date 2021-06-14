@@ -22,5 +22,3 @@ spec:
       containers:
         - image: yashkapila/docker-nodejs-app
           name: nodejs-backend
-          ports:
-            - containerPort: 80
