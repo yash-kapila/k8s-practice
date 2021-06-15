@@ -22,5 +22,3 @@ spec:
       containers:
         - image: yashkapila/docker-react-app
           name: react-frontend
-          ports:
-            - containerPort: 80
