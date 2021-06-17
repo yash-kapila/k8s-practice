@@ -1,6 +1,8 @@
 # k8s
 
-This project contains a sample application(frontend + service) which can be deployed using K8S. It contains a basic ReactJS application for frontend while a NodeJS app for the service layer. Both apps are decoupled according to the [Jamstack](https://jamstack.org/) architecture.
+Firstly, I would like to thank you for taking some time out and reviewing this assignment with me.
+
+This project contains a sample application(frontend + service) which can be deployed using K8S. It contains a basic ReactJS application for frontend while a PHP app for the service layer. Both apps are decoupled according to the modern [Jamstack](https://jamstack.org/) architecture.
 
 ## Pre-requisites
 
@@ -8,35 +10,45 @@ This project contains a sample application(frontend + service) which can be depl
 2. Minikube (a single node K8S cluster for local development)
 3. kubectl
 
-## NodeJS App
+## Applications
 
-The NodeJS(Express) app was generated following [this](https://expressjs.com/en/starter/hello-world.html) documentation.
+### PHP
 
-It exposes a simple POST API (`/api/log`) which logs a simple statement to the console and returns a dummy response.
+The PHP(Slim) app was generated using composer.
 
-The port on which the app is exposed is currently hardcoded as 8080. Check `nodejs-app/index.js`.
+```bash
+composer create-project slim/slim-skeleton php-app
+```
 
-## React App
+Inside `app/routes.php`, it exposes a simple POST API (`/api/log`) which returns a dummy response.
+
+Port on which the app is exposed is currently hardcoded as 8080.
+
+### React
 
 The React app was generated using [Create React App](https://create-react-app.dev/docs/getting-started).
 
-The app upon load makes a POST request to the endpoint exposed by Node app. Check `react-app/src/App.js`. This is to demonstrate a connection between the frontend and service layer deployed using Jamstack architecture. The final built app is deployed on Nginx.
+The app upon load makes a POST request to the endpoint exposed by PHP app. Check `react-app/src/App.js`.
 
-## Docker Images
+This is done to demonstrate a connection between the frontend and service layer deployed using Jamstack architecture. The final built version of the app is deployed on Nginx.
 
-### NodeJS
+## Dockerizing apps
 
-Build and push the Node app docker image to Docker Hub. Execute below in `nodejs-app` directory.
+Basic Dockerfiles for both React and PHP apps are located inside their respective apps.
+
+### PHP
+
+Build and push the PHP app docker image to Docker Hub. Execute below in `php-app` directory.
 
 ```bash
 # docker build . -t <image-name>
-docker build . -t docker-nodejs-app
+docker build . -t docker-php-app
 
 # docker tag <image-name> <dockerhub-username>/<tag-name>
-docker tag docker-nodejs-app yashkapila/docker-nodejs-app
+docker tag docker-php-app yashkapila/docker-php-app
 
 # docker push <dockerhub-username>/<tag-name>
-docker push yashkapila/docker-nodejs-app
+docker push yashkapila/docker-php-app
 ```
 
 ### ReactJS
@@ -44,6 +56,9 @@ docker push yashkapila/docker-nodejs-app
 Build and push the React app docker image to Docker Hub. Execute below in `react-app` directory.
 
 ```bash
+# npm i
+npm i
+
 # Build app
 npm run build
 
@@ -64,8 +79,8 @@ We copy a custom Nginx configuration to the docker image instead of using defaul
 ```
 # The identifier Backend is internal to nginx, and used to name this specific upstream
 upstream Backend {
-    # nodejs-backend-service is the internal DNS name used by the backend Service inside Kubernetes
-    server nodejs-backend-service;
+    # php-backend-service is the internal DNS name used by the backend Service inside Kubernetes
+    server php-backend-service;
 }
 
 server {
@@ -88,8 +103,8 @@ Key parts in above configuration are:
 
 ```
 upstream Backend {
-    # nodejs-backend-service is the internal DNS name used by the backend Service inside Kubernetes
-    server nodejs-backend-service;
+    # php-backend-service is the internal DNS name used by the backend Service inside Kubernetes
+    server php-backend-service;
 }
 ```
 
@@ -100,7 +115,7 @@ location /api {
 }
 ```
 
-This means that whenever Nginx receives a request from the React app with `/api`, it should forward it to the NodeJS app that we have built i.e `http://Backend`. This is configured as an upstream whose DNS is configured in our K8S setup. More on that down below.
+It means that when Nginx receives a request from the React app with `/api`, it should forward it to the PHP app i.e `http://Backend`. This is configured as an upstream whose DNS is configured in our K8S setup. More on that down below.
 
 ## K8S Setup
 
@@ -111,9 +126,11 @@ We have 4 k8s configuration objects defined in:
 - frontend.deployment.yaml
 - frontend.service.yaml
 
-`*.deployment.yaml` configurations are responsible for creating Replica Sets and Pods for our Node and React App.
+`backend.deployment.yaml` object is responsible for creating Pods for the PHP app.
 
-`backend.service.yaml` configuration is responsible to create a service which exposes NodeJS app pods to be able to accessed within the cluster(not outside the cluster though - that would be the responsibility of our frontend Load Balancer). This is defined as `nodejs-backend-service`. Note that this is the exact same name that we have configured in our Nginx upstream above. This is what connects our Nginx to the Node app.
+`frontend.deployment.yaml` object is responsible for creating Pods for the React app.
+
+`backend.service.yaml` configuration is responsible to create a service which enables PHP app to be accessible within the cluster. Being a ClusterIP kind, it is only accessible within the cluster but not outside it. It is named as **php-backend-service**. **Note** this is the exact same name that we have configured in our Nginx upstream above. This is what connects Nginx to the PHP app.
 
 `frontend.service.yaml` configuration is responsible to create a Load Balancer which allows us to access our React app outside the K8S cluster.
 
@@ -133,8 +150,35 @@ kubectl apply -f frontend.deployment.yaml
 kubectl apply -f frontend.service.yaml
 ```
 
-If you wish to test out the above setup on a local minikube cluster, execute below once above commands were successful. This would open up the React app locally. Open the browser Network tab and look for a successful `/api/log` request.
+### Testing
+
+#### Minikube
+
+To test out the above setup on a local minikube cluster create above defined k8s objects and execute below.
+
+We need to expose this service through Minikube because in a local development setup, there is no External IP address provided to reach out to the React application. Hence, a port forwarding is done by minikube to achieve desired behaviour.
 
 ```bash
+# Start a minikube cluster if not done already
+minikube start
+
+# Let minikube expose React service on localhost
 minikube service react-frontend-service
 ```
+
+This opens the React app locally on a port automatically assigned by Minikube. Open the browser Network tab and look for a successful `/api/log` request.
+
+#### Google Cloud Provider
+
+The same setup above can also be tested on a cloud provider. For the sake of this exercise we are going to use GKE service.
+
+In order to test this out successfully, create a basic K8S cluster using GKE and set it as the current context for `kubectl`.
+
+Once successful, create all objects defined above. When Load Balancer service is up, GCP would provide an external IP address which can be reached through the internet.
+
+## Scope of improvement
+
+There are a few areas I feel I could have done better but didn't manage to finish in the time available. Some of those points are:
+
+1. Use Ingress object instead of the services defined for frontend and backend.
+2. Currently, the backend service name is configured inside Nginx which causes a mix of my infrastructure with application and could be separated. I am thinking an environment variable might have been better.
