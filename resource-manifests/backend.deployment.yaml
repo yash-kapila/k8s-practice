@@ -2,11 +2,11 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: nodejs-backend-deployment
+  name: php-backend-deployment
 spec:
   selector:
     matchLabels:
-      app: nodejs-backend                                    
+      app: php-backend                                    
   replicas: 2
   minReadySeconds: 15
   strategy:
@@ -17,8 +17,8 @@ spec:
   template:
     metadata:
       labels:
-        app: nodejs-backend
+        app: php-backend
     spec:
       containers:
-        - image: yashkapila/docker-nodejs-app
-          name: nodejs-backend
+        - image: yashkapila/docker-php-app
+          name: php-backend
